@@ -3,7 +3,8 @@
  * `Special:CommunityConfiguration/<id>`: one feature's editor. "Editing <title>",
  * the "View form" / "View history" / "Watch" tabs (Vector only), a link back to
  * the dashboard, then the form (the default slot) and "Save changes". Saving
- * asks for an edit summary, then emits `save` and confirms. Readers who are not
+ * asks for an edit summary, then emits `save` and confirms. If the form has
+ * `errors`, saving stops and lists them above the button. Readers who are not
  * administrators see the extension's notices, and cannot save. The "…" menu
  * switches between those two views and, with a `reset` listener, offers "Reset
  * to defaults". Wrap it in `ChromeWrapper`. Copy is the extension's own English
@@ -32,6 +33,11 @@ const props = defineProps<{
   feature: CommunityConfigurationFeature
   /** The dashboard's route, which the back link leads to. */
   basePath: string
+  /**
+   * The form's validation errors, e.g. "Backlog 2 → Category: Enter a category.".
+   * If there are any, saving stops.
+   */
+  errors?: readonly string[]
   /**
    * The `@reset` listener: "Reset to defaults" in the "…" menu. A prop, not an
    * event, so that the menu offers it only when there is a listener.
@@ -86,8 +92,14 @@ const dialogOpen = ref(false)
 const summary = ref('')
 const saved = ref(false)
 
+/** Save changes was tried: the form shows its errors from here on (the slot's `attempted`). */
+const attempted = ref(false)
+const errorCount = computed(() => props.errors?.length ?? 0)
+
 function openDialog(): void {
   if (!isAdmin.value) return
+  attempted.value = true
+  if (errorCount.value) return
   saved.value = false
   summary.value = ''
   dialogOpen.value = true
@@ -139,7 +151,7 @@ function save(): void {
     </CdxMessage>
 
     <form class="cc-editor__form" @submit.prevent="openDialog">
-      <slot />
+      <slot :attempted="attempted" />
 
       <div class="cc-editor__footer">
         <CdxMessage
@@ -150,6 +162,13 @@ function save(): void {
           @user-dismissed="saved = false"
         >
           Your changes were saved
+        </CdxMessage>
+        <CdxMessage v-if="attempted && errorCount" type="error">
+          {{ errorCount === 1 ? 'There is an error' : `There are ${errorCount} errors` }}
+          in the form:
+          <ul class="cc-editor__errors">
+            <li v-for="error in errors" :key="error">{{ error }}</li>
+          </ul>
         </CdxMessage>
         <CdxMessage v-if="!isAdmin" inline>
           You cannot save changes to this form because configuration for this feature is only
@@ -246,6 +265,11 @@ function save(): void {
   padding-block: var(--spacing-100);
   border-top: var(--border-width-base) var(--border-style-base) var(--border-color-subtle);
   background-color: var(--background-color-base);
+}
+
+.cc-editor__errors {
+  margin: var(--spacing-25) 0 0;
+  padding-inline-start: var(--spacing-150);
 }
 
 .cc-editor__dialog {

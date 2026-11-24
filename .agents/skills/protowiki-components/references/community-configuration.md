@@ -189,14 +189,22 @@ optional `historyUrl`.
 
 ## `CommunityConfigurationEditor`
 
-| Prop       | Type                            | Notes                     |
-| ---------- | ------------------------------- | ------------------------- |
-| `feature`  | `CommunityConfigurationFeature` |                           |
-| `basePath` | `string`                        | Where the back link leads |
+| Prop       | Type                            | Notes                                                                            |
+| ---------- | ------------------------------- | -------------------------------------------------------------------------------- |
+| `feature`  | `CommunityConfigurationFeature` |                                                                                  |
+| `basePath` | `string`                        | Where the back link leads                                                        |
+| `errors`   | `readonly string[]`             | Optional. The form's validation errors; any, and Save changes lists them instead |
 
-| Slot       | Use for                                                         |
-| ---------- | --------------------------------------------------------------- |
-| `#default` | The feature's form fields (Codex `CdxField`s), above the footer |
+| Slot       | Slot props               | Use for                                                         |
+| ---------- | ------------------------ | --------------------------------------------------------------- |
+| `#default` | `{ attempted: boolean }` | The feature's form fields (Codex `CdxField`s), above the footer |
+
+**Validation errors.** Pass the form's errors as `errors`, one string per
+error (e.g. "Backlog 2 → Category: Enter a category."). Save changes then
+shows "There are N errors in the form:" with the list, and doesn't open the
+dialog. `attempted` turns true at the first Save changes: show each field's
+own error only from then on, with `CdxField`'s `status="error"` and
+`messages`. `home-administrator/BacklogsConfigEditor.vue` is an example.
 
 | Event   | Payload           | When                                                                             |
 | ------- | ----------------- | -------------------------------------------------------------------------------- |

@@ -217,14 +217,14 @@ export function useConfig(): {
   const mockEditorEditCount = computed({
     get: () => {
       const activeUser = user.value
-      if (activeUser === 'new' || activeUser === 'experienced') {
+      if (activeUser === 'new' || activeUser === 'experienced' || activeUser === 'admin') {
         return config.value.mockEditorEditCountByUser[activeUser]
       }
       return DEFAULT_MOCK_EDITOR_EDIT_COUNT_BY_USER.new
     },
     set: (value: ConfigMockEditorEditCount) => {
       const activeUser = user.value
-      if (activeUser !== 'new' && activeUser !== 'experienced') return
+      if (activeUser !== 'new' && activeUser !== 'experienced' && activeUser !== 'admin') return
       config.value = {
         ...config.value,
         mockEditorEditCountByUser: {

@@ -3,7 +3,7 @@ export type PrototypePlatform = 'web' | 'app'
 export type AppPlatform = 'ios' | 'android'
 export type ConfigAppPlatform = 'auto' | AppPlatform
 export type ConfigWebSkin = 'auto' | 'desktop' | 'mobile'
-export type ConfigUser = 'logged-out' | 'new' | 'experienced' | 'real'
+export type ConfigUser = 'logged-out' | 'new' | 'experienced' | 'admin' | 'real'
 
 /** Mock editor total edit count (Visual Editor / Suggestion Mode prototypes). */
 export type ConfigMockEditorEditCount = 'none' | 'new' | 'intermediate' | 'experienced'
@@ -24,17 +24,20 @@ export const CONFIG_MOCK_EDITOR_EDIT_COUNT_SELECT_ITEMS = CONFIG_MOCK_EDITOR_EDI
 export interface MockEditorEditCountByUser {
   new: ConfigMockEditorEditCount
   experienced: ConfigMockEditorEditCount
+  admin: ConfigMockEditorEditCount
 }
 
 export const DEFAULT_MOCK_EDITOR_EDIT_COUNT_BY_USER: MockEditorEditCountByUser = {
   new: 'none',
   experienced: 'experienced',
+  admin: 'experienced',
 }
 
 /** Default mock Edits value when a preset is reset. */
 export function defaultMockEditorEditCountForUser(user: ConfigUser): ConfigMockEditorEditCount | null {
   if (user === 'new') return DEFAULT_MOCK_EDITOR_EDIT_COUNT_BY_USER.new
   if (user === 'experienced') return DEFAULT_MOCK_EDITOR_EDIT_COUNT_BY_USER.experienced
+  if (user === 'admin') return DEFAULT_MOCK_EDITOR_EDIT_COUNT_BY_USER.admin
   return null
 }
 
@@ -46,6 +49,7 @@ export function isDefaultMockEditorEditCountByUser(
   if (user === 'experienced') {
     return byUser.experienced === DEFAULT_MOCK_EDITOR_EDIT_COUNT_BY_USER.experienced
   }
+  if (user === 'admin') return byUser.admin === DEFAULT_MOCK_EDITOR_EDIT_COUNT_BY_USER.admin
   return true
 }
 
@@ -55,6 +59,7 @@ function mergeMockEditorEditCountByUser(stored: unknown, legacySingle?: unknown)
     const record = stored as Record<string, unknown>
     if (isConfigMockEditorEditCount(record.new)) base.new = record.new
     if (isConfigMockEditorEditCount(record.experienced)) base.experienced = record.experienced
+    if (isConfigMockEditorEditCount(record.admin)) base.admin = record.admin
   }
   if (isConfigMockEditorEditCount(legacySingle)) {
     base.experienced = legacySingle
@@ -120,8 +125,32 @@ export interface Config {
   /** Wikipedia username when `user` is `'real'`. */
   realUsername: string
   userPageLists: Record<ConfigUser, UserPageLists>
-  /** Mock Edits dropdown value per preset (New user / Experienced editor). */
+  /** Mock Edits dropdown value per preset (New user / Experienced editor / Administrator). */
   mockEditorEditCountByUser: MockEditorEditCountByUser
+}
+
+/** Experienced editor and Administrator: an established editor's saved pages. */
+const EXPERIENCED_USER_PAGE_LISTS: UserPageLists = {
+  lang: 'en',
+  watchlist: [
+    'Wet Leg',
+    'Jade Thirlwall',
+    'Confidence Man (band)',
+    'Gorillaz',
+    'Little Mix',
+    'DSEI',
+  ],
+  readingList: [
+    'Wet Leg',
+    'Jade Thirlwall',
+    'Confidence Man (band)',
+    'Gorillaz',
+    'Little Mix',
+    'Charli XCX',
+    'Dada',
+    'Surrealism',
+  ],
+  editedPages: ['Wet Leg', 'Jade Thirlwall', 'Confidence Man (band)', 'Gorillaz'],
 }
 
 export const DEFAULT_USER_PAGE_LISTS: Record<ConfigUser, UserPageLists> = {
@@ -137,28 +166,8 @@ export const DEFAULT_USER_PAGE_LISTS: Record<ConfigUser, UserPageLists> = {
     readingList: [],
     editedPages: [],
   },
-  experienced: {
-    lang: 'en',
-    watchlist: [
-      'Wet Leg',
-      'Jade Thirlwall',
-      'Confidence Man (band)',
-      'Gorillaz',
-      'Little Mix',
-      'DSEI',
-    ],
-    readingList: [
-      'Wet Leg',
-      'Jade Thirlwall',
-      'Confidence Man (band)',
-      'Gorillaz',
-      'Little Mix',
-      'Charli XCX',
-      'Dada',
-      'Surrealism',
-    ],
-    editedPages: ['Wet Leg', 'Jade Thirlwall', 'Confidence Man (band)', 'Gorillaz'],
-  },
+  experienced: EXPERIENCED_USER_PAGE_LISTS,
+  admin: EXPERIENCED_USER_PAGE_LISTS,
   real: {
     lang: 'en',
     watchlist: [],
@@ -186,14 +195,21 @@ export const CONFIG_USER_DISPLAY_NAMES: Partial<Record<ConfigUser, string>> = {
   'logged-out': 'LoggedOut',
   new: 'New user',
   experienced: 'Experienced editor',
+  admin: 'Administrator',
 }
 
-export const CONFIG_USER_MENU_ITEMS: { value: ConfigUser; label: string; description?: string }[] = [
-  { value: 'logged-out', label: 'Logged out user' },
-  { value: 'new', label: 'New user' },
-  { value: 'experienced', label: 'Experienced editor' },
-  { value: 'real', label: 'Real user', description: 'Connect to a real account on the wikis' },
-]
+export const CONFIG_USER_MENU_ITEMS: { value: ConfigUser; label: string; description?: string }[] =
+  [
+    { value: 'logged-out', label: 'Logged out user' },
+    { value: 'new', label: 'New user' },
+    { value: 'experienced', label: 'Experienced editor' },
+    {
+      value: 'admin',
+      label: 'Administrator',
+      description: 'An experienced editor with admin rights',
+    },
+    { value: 'real', label: 'Real user', description: 'Connect to a real account on the wikis' },
+  ]
 
 export const CONFIG_THEME_MENU_ITEMS: { value: ConfigTheme; label: string }[] = [
   { value: 'system', label: 'Auto' },
@@ -352,7 +368,7 @@ const STORAGE_KEY = 'protowiki-prototype-user-config'
 const VALID_THEMES: ConfigTheme[] = ['light', 'dark', 'system']
 const VALID_CONFIG_APP_PLATFORMS: ConfigAppPlatform[] = ['auto', 'ios', 'android']
 const VALID_WEB_SKINS: ConfigWebSkin[] = ['auto', 'desktop', 'mobile']
-const VALID_USERS: ConfigUser[] = ['logged-out', 'new', 'experienced', 'real']
+const VALID_USERS: ConfigUser[] = ['logged-out', 'new', 'experienced', 'admin', 'real']
 export const PAGE_LIST_FIELD_KEYS: PageListKey[] = ['watchlist', 'readingList', 'editedPages']
 
 const PAGE_LIST_KEYS = PAGE_LIST_FIELD_KEYS
@@ -391,6 +407,7 @@ function cloneUserPageListsMap(
     'logged-out': cloneUserPageLists(map['logged-out']),
     new: cloneUserPageLists(map.new),
     experienced: cloneUserPageLists(map.experienced),
+    admin: cloneUserPageLists(map.admin),
     real: cloneUserPageLists(map.real),
   }
 }

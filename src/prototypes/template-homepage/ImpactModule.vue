@@ -38,6 +38,10 @@ interface Props {
   longestStreak?: string
   // Desktop (empty + filled)
   thanksReceived?: number | string
+  /** Label for the `thanksReceived` stat. */
+  thanksReceivedLabel?: string
+  /** Label for the `lastEdited` stat (desktop). */
+  lastEditedLabel?: string
   // Desktop filled only
   totalEdits?: number
   recentActivityData?: number[]
@@ -62,6 +66,8 @@ const props = withDefaults(defineProps<Props>(), {
   lastEdited: undefined,
   longestStreak: undefined,
   thanksReceived: 0,
+  thanksReceivedLabel: 'Thanks received',
+  lastEditedLabel: 'Last edited',
   totalEdits: undefined,
   recentActivityData: () => [],
   activityStartDate: undefined,
@@ -222,7 +228,7 @@ const recentEditCount = computed(() =>
             <span class="impact-module__desktop-stat-value">{{ thanksReceived }}</span>
           </div>
           <div class="impact-module__desktop-stat-label-row">
-            <span class="impact-module__desktop-stat-label">Thanks received</span>
+            <span class="impact-module__desktop-stat-label">{{ thanksReceivedLabel }}</span>
             <CdxIcon :icon="cdxIconInfo" size="small" class="impact-module__desktop-info-icon" />
           </div>
         </div>
@@ -231,7 +237,7 @@ const recentEditCount = computed(() =>
             <CdxIcon :icon="cdxIconClock" size="small" class="impact-module__desktop-stat-icon" />
             <span class="impact-module__desktop-stat-value">{{ lastEdited }}</span>
           </div>
-          <span class="impact-module__desktop-stat-label">Last edited</span>
+          <span class="impact-module__desktop-stat-label">{{ lastEditedLabel }}</span>
         </div>
         <div class="impact-module__desktop-stat impact-module__desktop-stat--border-top impact-module__desktop-stat--border-left">
           <div class="impact-module__desktop-stat-value-row">
@@ -367,7 +373,7 @@ const recentEditCount = computed(() =>
             <span class="impact-module__desktop-stat-value">{{ thanksReceived }}</span>
           </div>
           <div class="impact-module__desktop-stat-label-row">
-            <span class="impact-module__desktop-stat-label">Thanks received</span>
+            <span class="impact-module__desktop-stat-label">{{ thanksReceivedLabel }}</span>
             <CdxIcon :icon="cdxIconInfo" size="small" class="impact-module__desktop-info-icon" />
           </div>
         </div>

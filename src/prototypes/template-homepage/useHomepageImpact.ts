@@ -43,7 +43,7 @@ export function useHomepageImpact(): {
   }
 
   const impactMobileProps = computed((): ImpactModuleBind => {
-    if (user.value === 'experienced') {
+    if (user.value === 'experienced' || user.value === 'admin') {
       return { to: IMPACT_PAGE, ...IMPACT, sparklineData: [...IMPACT.sparklineData] }
     }
     if (user.value === 'real') {
@@ -53,7 +53,7 @@ export function useHomepageImpact(): {
   })
 
   const impactDesktopProps = computed((): ImpactModuleBind => {
-    if (user.value === 'experienced') {
+    if (user.value === 'experienced' || user.value === 'admin') {
       return { ...IMPACT_DESKTOP }
     }
     if (user.value === 'real') {

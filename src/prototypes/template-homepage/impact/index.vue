@@ -19,7 +19,7 @@ function shouldShowLoadPrompt(hasStarted: boolean, hasRenderableData: boolean): 
 }
 
 const impactProps = computed(() => {
-  if (user.value === 'experienced') {
+  if (user.value === 'experienced' || user.value === 'admin') {
     return { ...IMPACT_DESKTOP }
   }
   if (user.value === 'real') {
