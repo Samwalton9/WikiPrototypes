@@ -14,4 +14,9 @@ export const FEATURES: readonly CommunityConfigurationFeature[] = [
     title: 'Backlogs',
     description: "Customize the newcomer homepage's Backlogs module.",
   },
+  {
+    id: 'CommunityDiscussions',
+    title: 'Community discussions',
+    description: "Highlight discussions in the Community tab of every editor's Active discussions.",
+  },
 ]

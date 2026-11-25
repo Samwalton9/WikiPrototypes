@@ -2,13 +2,16 @@
 /**
  * A module's list of discussion cards: Codex `CdxCard`s with no thumbnail — the
  * thread, its noticeboard, then its comments and when — opening the thread on
- * Wikipedia in a new tab. While loading it shows flat skeletons of the same
- * shape. As a `feed` (a module's own page) the cards are divider rows.
+ * Wikipedia in a new tab. Each card has a pin button in its top corner. While
+ * loading it shows flat skeletons of the same shape. As a `feed` (a module's
+ * own page) the cards are divider rows.
  */
-import { CdxCard, CdxIcon } from '@wikimedia/codex'
-import { cdxIconSpeechBubbles } from '@wikimedia/codex-icons'
+import { CdxButton, CdxCard, CdxIcon } from '@wikimedia/codex'
+import { cdxIconPushPin, cdxIconSpeechBubbles } from '@wikimedia/codex-icons'
 
 import type { DiscussionCard } from './loadActiveDiscussions'
+
+const emit = defineEmits<{ 'toggle-pin': [card: DiscussionCard] }>()
 
 defineProps<{
   cards: readonly DiscussionCard[]
@@ -17,6 +20,8 @@ defineProps<{
   skeletons: number
   /** Divider rows rather than outlined cards (a module's own page). */
   feed?: boolean
+  /** The links of the pinned threads. */
+  pinnedHrefs: ReadonlySet<string>
 }>()
 </script>
 
@@ -26,27 +31,37 @@ defineProps<{
       <div v-for="index in skeletons" :key="index" class="home-card-skeleton" aria-hidden="true" />
     </template>
 
-    <CdxCard
-      v-for="card in cards"
-      v-else
-      :key="card.key"
-      class="home-discussion-cards__card"
-      :url="card.href"
-      target="_blank"
-      :separation="feed ? 'divider' : undefined"
-    >
-      <template #title>{{ card.title }}</template>
-      <template #description>{{ card.board }}</template>
-      <template #supporting-text>
-        <span class="home-discussion-cards__supporting">
-          <span class="home-discussion-cards__supporting-icon">
-            <CdxIcon :icon="cdxIconSpeechBubbles" size="small" />
+    <div v-for="card in cards" v-else :key="card.href" class="home-discussion-cards__item">
+      <CdxCard
+        class="home-discussion-cards__card"
+        :url="card.href"
+        target="_blank"
+        :separation="feed ? 'divider' : undefined"
+      >
+        <template #title>{{ card.title }}</template>
+        <template v-if="card.board" #description>{{ card.board }}</template>
+        <template v-if="card.comments" #supporting-text>
+          <span class="home-discussion-cards__supporting">
+            <span class="home-discussion-cards__supporting-icon">
+              <CdxIcon :icon="cdxIconSpeechBubbles" size="small" />
+            </span>
+            <span>{{ card.comments }}</span>
+            <span class="home-discussion-cards__time">{{ card.ago }}</span>
           </span>
-          <span>{{ card.comments }}</span>
-          <span class="home-discussion-cards__time">{{ card.ago }}</span>
-        </span>
-      </template>
-    </CdxCard>
+        </template>
+      </CdxCard>
+      <!-- Beside the card, not in it: the card is a link, and a button can't be in a link. -->
+      <CdxButton
+        class="home-discussion-cards__pin"
+        weight="quiet"
+        :action="pinnedHrefs.has(card.href) ? 'progressive' : 'default'"
+        :aria-label="pinnedHrefs.has(card.href) ? 'Unpin discussion' : 'Pin discussion'"
+        :aria-pressed="pinnedHrefs.has(card.href)"
+        @click="emit('toggle-pin', card)"
+      >
+        <CdxIcon :icon="cdxIconPushPin" />
+      </CdxButton>
+    </div>
   </div>
 </template>
 
@@ -55,6 +70,35 @@ defineProps<{
   display: flex;
   flex-direction: column;
   gap: var(--spacing-50);
+}
+
+/* PROTOWIKI+ The pin button sits over the card's top end corner. */
+.home-discussion-cards__item {
+  position: relative;
+}
+
+.home-discussion-cards__pin {
+  position: absolute;
+  top: var(--spacing-50);
+  inset-inline-end: var(--spacing-50);
+}
+
+/* A divider row has no side padding, so the button goes to the row's edge. */
+.home-feed .home-discussion-cards__pin {
+  inset-inline-end: 0;
+}
+
+/* The title wraps before it reaches the pin button. */
+.home-discussion-cards__card :deep(.cdx-card__text__title) {
+  padding-inline-end: var(--min-size-interactive-pointer);
+}
+
+/*
+ * CODEX+ CdxCard: the divider between rows is for adjacent cards. Each card here
+ * is in its own wrapper (with its pin button), so the wrappers draw it.
+ */
+.home-feed .home-discussion-cards__item + .home-discussion-cards__item .cdx-card {
+  border-top: var(--border-width-base) var(--border-style-base) var(--border-color-base);
 }
 
 /*

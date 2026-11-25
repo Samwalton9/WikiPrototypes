@@ -11,11 +11,13 @@ import CommunityConfigurationEditor from '@/components/community-configuration/C
 import { preservedQueryFromLocationQuery } from '@/appearance/url-query'
 
 import BacklogsConfigEditor from '../../BacklogsConfigEditor.vue'
+import CommunityDiscussionsConfigEditor from '../../CommunityDiscussionsConfigEditor.vue'
 import { COMMUNITY_CONFIGURATION_PATH, FEATURES } from '../../communityConfiguration'
 
 /** Each feature's own editor, with its form; a feature without one gets an empty form. */
 const EDITORS: Record<string, Component> = {
   GrowthBacklogs: BacklogsConfigEditor,
+  CommunityDiscussions: CommunityDiscussionsConfigEditor,
 }
 
 const route = useRoute()

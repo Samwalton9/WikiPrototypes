@@ -1,5 +1,7 @@
 import { computed, ref } from 'vue'
 
+import { setItemKeepingState } from '@/utils/storage'
+
 import { DEFAULT_BACKLOGS, type BacklogCategory } from './loadBacklogs'
 
 /* Its own key, so this template's state doesn't leak into other prototypes'. */
@@ -62,7 +64,7 @@ export function useBacklogConfig() {
   function save(next: readonly BacklogCategory[]): void {
     backlogs.value = normalize(next) ?? []
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(backlogs.value))
+      setItemKeepingState(STORAGE_KEY, JSON.stringify(backlogs.value))
     } catch {
       // Quota or private mode — the in-memory list still works for this visit.
     }

@@ -20,8 +20,10 @@ import HomeModuleMenu from '../HomeModuleMenu.vue'
 import HomeReviewChanges from '../HomeReviewChanges.vue'
 import HomeSubpageHeader from '../HomeSubpageHeader.vue'
 import HomeSuggestedEdits from '../HomeSuggestedEdits.vue'
-import { REVIEW_CHANGES_MENU, SUGGESTED_EDITS_MENU } from '../homeModuleMenus'
+import HomeTodo from '../HomeTodo.vue'
+import { REVIEW_CHANGES_MENU, SUGGESTED_EDITS_MENU, TODO_MENU } from '../homeModuleMenus'
 import { HOME_PATH } from '../homeRoutes'
+import { useTodos } from '../useTodos'
 
 interface ModulePage {
   title: string
@@ -32,9 +34,15 @@ interface ModulePage {
   editorsOnly?: boolean
   /** Not on the Administrator's Home. */
   notForAdmins?: boolean
+  /** Only on the Administrator's Home. */
+  adminsOnly?: boolean
+  /** Acts on a pick in its "…" menu. */
+  onMenuSelect?: (value: string | number) => void
 }
 
-/** The modules with a "Show more", by id. */
+const { clearCompleted } = useTodos()
+
+/** The modules with a "Show more" (or To-do's "View all tasks"), by id. */
 const MODULE_PAGES: Record<string, ModulePage> = {
   'suggested-edits': {
     title: 'Suggested edits',
@@ -53,6 +61,15 @@ const MODULE_PAGES: Record<string, ModulePage> = {
     body: HomeActiveDiscussions,
     editorsOnly: true,
   },
+  'to-do': {
+    title: 'To-do',
+    body: HomeTodo,
+    menu: TODO_MENU,
+    adminsOnly: true,
+    onMenuSelect: (value) => {
+      if (value === 'clear-completed') clearCompleted()
+    },
+  },
 }
 
 const route = useRoute()
@@ -68,6 +85,7 @@ const page = computed(() => {
   const found = MODULE_PAGES[moduleId.value]
   if (!found) return null
   if (found.notForAdmins && user.value === 'admin') return null
+  if (found.adminsOnly && user.value !== 'admin') return null
   if (
     found.editorsOnly &&
     user.value !== 'experienced' &&
@@ -98,7 +116,7 @@ watch(moduleId, () => window.scrollTo(0, 0), { immediate: true })
     <template v-if="page" #header>
       <HomeSubpageHeader :title="page.title">
         <template v-if="page.menu" #actions>
-          <HomeModuleMenu :menu="page.menu" />
+          <HomeModuleMenu :menu="page.menu" @select="page.onMenuSelect?.($event)" />
         </template>
       </HomeSubpageHeader>
     </template>

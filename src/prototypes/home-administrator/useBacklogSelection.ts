@@ -1,5 +1,7 @@
 import { computed, ref } from 'vue'
 
+import { setItemKeepingState } from '@/utils/storage'
+
 import { useBacklogConfig } from './useBacklogConfig'
 
 /* Its own key, so this template's state doesn't leak into other prototypes'. */
@@ -49,7 +51,7 @@ export function useBacklogSelection() {
   function setEnabled(next: readonly string[]): void {
     ids.value = normalizeIds(next)?.slice(0, MAX_BACKLOGS) ?? []
     try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(ids.value))
+      setItemKeepingState(STORAGE_KEY, JSON.stringify(ids.value))
     } catch {
       // Quota or private mode — the in-memory choice still works for this visit.
     }

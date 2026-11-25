@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 
 import { useConfig } from '@/composables/useConfig'
 import type { ConfigUser } from '@/config'
+import { setItemKeepingState } from '@/utils/storage'
 
 /* Its own key, so this template's state doesn't leak into other prototypes'. */
 const STORAGE_KEY = 'protowiki-home-administrator-mentor-v1'
@@ -43,7 +44,7 @@ function loadStates(): MentorStates {
 
 function saveStates(next: MentorStates): MentorStates {
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+    setItemKeepingState(STORAGE_KEY, JSON.stringify(next))
   } catch {
     // Quota or private mode — the in-memory state still works for this visit.
   }

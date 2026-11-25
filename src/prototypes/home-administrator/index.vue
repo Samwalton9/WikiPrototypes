@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { CdxDialog } from '@wikimedia/codex'
 import { cdxIconHome } from '@wikimedia/codex-icons'
 
 import ChromeWrapper from '@/components/chrome/ChromeWrapper.vue'
@@ -16,18 +17,25 @@ import HomeImpact from './HomeImpact.vue'
 import HomeMentor from './HomeMentor.vue'
 import HomeModuleMenu from './HomeModuleMenu.vue'
 import HomePageHeader from './HomePageHeader.vue'
+import HomeQuickLinks from './HomeQuickLinks.vue'
+import HomeQuickLinksDialog from './HomeQuickLinksDialog.vue'
 import HomeReviewChanges from './HomeReviewChanges.vue'
 import HomeSectionFrame from './HomeSectionFrame.vue'
 import HomeSuggestedEdits from './HomeSuggestedEdits.vue'
+import HomeTodo from './HomeTodo.vue'
 import {
+  ACTIVE_DISCUSSIONS_MENU,
   BACKLOGS_MENU,
   DAILY_READS_MENU,
+  QUICK_LINKS_MENU,
   REVIEW_CHANGES_MENU,
   SUGGESTED_EDITS_MENU,
+  TODO_MENU,
 } from './homeModuleMenus'
 import { COMMUNITY_CONFIGURATION_PATH } from './communityConfiguration'
 import { MENTOR_CONTENT } from './mentorContent'
 import { useHomeMentor } from './useHomeMentor'
+import { useTodos } from './useTodos'
 
 definePage({
   meta: {
@@ -43,7 +51,10 @@ const { pageTitle, user } = useConfig()
 /* Desktop: 60/40, main column then side column. Mobile: one column. */
 const isSplit = computed(() => globalSkin.value === 'desktop')
 
-/* Administrator: the admin's Home — Backlogs, Review changes, Active discussions and Your impact only. */
+/*
+ * Administrator: the admin's Home — Review changes, Active discussions, Quick
+ * links, To-do, Your impact and Backlogs only.
+ */
 const isAdmin = computed(() => user.value === 'admin')
 
 /* Review changes and Active discussions are for experienced editors: Experienced editor and Real user. */
@@ -68,18 +79,41 @@ const mentorMenu = computed(() => ({
 const route = useRoute()
 const router = useRouter()
 
+const { clearCompleted } = useTodos()
+
+/* Vector: To-do's "View all tasks" opens the full list in a dialog. */
+const viewingAllTodos = ref(false)
+
+function onTodoMenuSelect(value: string | number): void {
+  if (value === 'clear-completed') clearCompleted()
+}
+
+/* Quick links' "Edit quick links" dialog. */
+const editingQuickLinks = ref(false)
+
+function onQuickLinksMenuSelect(value: string | number): void {
+  if (value === 'edit') editingQuickLinks.value = true
+}
+
 /* Backlogs' "Choose backlogs" dialog. */
 const choosingBacklogs = ref(false)
+
+/* Open a feature's Community Configuration form. */
+function configure(featureId: string): void {
+  void router.push({
+    path: `${COMMUNITY_CONFIGURATION_PATH}/${featureId}`,
+    query: preservedQueryFromLocationQuery(route.query),
+  })
+}
 
 /* "Configure" leads to the module's Community Configuration form. */
 function onBacklogsMenuSelect(value: string | number): void {
   if (value === 'choose') choosingBacklogs.value = true
-  if (value === 'configure') {
-    void router.push({
-      path: `${COMMUNITY_CONFIGURATION_PATH}/GrowthBacklogs`,
-      query: preservedQueryFromLocationQuery(route.query),
-    })
-  }
+  if (value === 'configure') configure('GrowthBacklogs')
+}
+
+function onActiveDiscussionsMenuSelect(value: string | number): void {
+  if (value === 'configure') configure('CommunityDiscussions')
 }
 
 function onMentorMenuSelect(value: string | number): void {
@@ -126,11 +160,35 @@ function onMentorMenuSelect(value: string | number): void {
             id="active-discussions"
             title="Active discussions"
           >
+            <template #actions>
+              <HomeModuleMenu
+                :menu="ACTIVE_DISCUSSIONS_MENU"
+                @select="onActiveDiscussionsMenuSelect"
+              />
+            </template>
             <HomeActiveDiscussions />
           </HomeSectionFrame>
         </div>
 
         <div class="home-modules home-modules--side">
+          <HomeSectionFrame v-if="isAdmin" id="quick-links" title="Quick links">
+            <template #actions>
+              <HomeModuleMenu :menu="QUICK_LINKS_MENU" @select="onQuickLinksMenuSelect" />
+            </template>
+            <HomeQuickLinks @edit="editingQuickLinks = true" />
+            <HomeQuickLinksDialog v-model:open="editingQuickLinks" />
+          </HomeSectionFrame>
+
+          <HomeSectionFrame v-if="isAdmin" id="to-do" title="To-do">
+            <template #actions>
+              <HomeModuleMenu :menu="TODO_MENU" @select="onTodoMenuSelect" />
+            </template>
+            <HomeTodo @view-all="viewingAllTodos = true" />
+            <CdxDialog v-model:open="viewingAllTodos" title="To-do" use-close-button>
+              <HomeTodo feed />
+            </CdxDialog>
+          </HomeSectionFrame>
+
           <HomeSectionFrame id="impact" title="Your impact">
             <HomeImpact />
           </HomeSectionFrame>

@@ -1,18 +1,24 @@
 /**
  * Active discussions: busy threads on English Wikipedia's community
- * noticeboards (the help desk and the village pumps), from DiscussionTools.
+ * noticeboards (the administrators' noticeboards and the village pumps), from
+ * DiscussionTools.
  */
 
 import { wikimediaApiFetchHeaders } from '@/config'
 
 import { readDayCache, utcDayKey, writeDayCache } from './homeCache'
 import { formatAgo } from './relativeTime'
+import { normalizeTitle, type CommunityPin } from './useCommunityPinsConfig'
 
 const HOST = 'en.wikipedia.org'
 
-/** enwiki's noticeboards for the Personal dashboard (`wgPersonalDashboardActiveDiscussionsPages`, T420785). */
+/**
+ * enwiki's noticeboards for the Personal dashboard (`wgPersonalDashboardActiveDiscussionsPages`,
+ * T420785), for admins: the administrators' noticeboards in place of the help desk.
+ */
 const NOTICEBOARDS: readonly string[] = [
-  'Wikipedia:Help desk',
+  "Wikipedia:Administrators' noticeboard",
+  "Wikipedia:Administrators' noticeboard/Incidents",
   'Wikipedia:Village pump (miscellaneous)',
   'Wikipedia:Village pump (technical)',
   'Wikipedia:Village pump (idea lab)',
@@ -31,14 +37,16 @@ const CACHE_MAX_AGE_MS = 60 * 60_000
 export interface DiscussionCard {
   key: string
   title: string
-  /** The noticeboard, without `Wikipedia:`. */
+  /** The noticeboard, without `Wikipedia:`. Empty when the discussion is the whole page. */
   board: string
   /** The thread on Wikipedia. */
   href: string
-  /** "4 comments". */
+  /** "4 comments". Empty when unknown (a community discussion that isn't a live thread). */
   comments: string
-  /** When the latest reply came, e.g. "3h ago". */
+  /** When the latest reply came, e.g. "3h ago". Empty when unknown. */
   ago: string
+  /** The latest reply's timestamp (ISO 8601), so a pinned card can work out `ago` again. Empty when unknown. */
+  latestReply: string
 }
 
 interface Thread {
@@ -109,8 +117,12 @@ function mergeThreads(boards: Thread[][]): Thread[] {
   )
 }
 
+function pageUrl(page: string): string {
+  return `https://${HOST}/wiki/${encodeURI(page.replace(/ /g, '_'))}`
+}
+
 function toCard(thread: Thread): DiscussionCard {
-  const url = `https://${HOST}/wiki/${encodeURI(thread.board.replace(/ /g, '_'))}`
+  const url = pageUrl(thread.board)
   return {
     key: thread.id,
     title: thread.title,
@@ -118,6 +130,7 @@ function toCard(thread: Thread): DiscussionCard {
     href: `${url}#${encodeURIComponent(thread.id)}`,
     comments: `${thread.comments} ${thread.comments === 1 ? 'comment' : 'comments'}`,
     ago: formatAgo(Date.parse(thread.latestReply)),
+    latestReply: thread.latestReply,
   }
 }
 
@@ -148,4 +161,65 @@ export async function loadActiveDiscussions(signal: AbortSignal): Promise<Discus
   const threads = mergeThreads(results.map((board) => board ?? []))
   writeDayCache(CACHE_SLOT, day, threads)
   return threads.map(toCard)
+}
+
+/**
+ * Invented activity for the prototype's example community discussions
+ * (`DEFAULT_PINS`), which aren't live threads: comments, and hours since the
+ * latest reply.
+ */
+const EXAMPLE_ACTIVITY: Record<string, { comments: number; hoursAgo: number }> = {
+  'example-village-pump-policy': { comments: 47, hoursAgo: 3 },
+  'example-rfc-admin-recall': { comments: 212, hoursAgo: 26 },
+}
+
+/**
+ * The Community tab's cards: the discussions admins pick, in their order. One
+ * with a section becomes its live thread when the page has a thread with that
+ * heading (the same card, and link, as in the All tab, so a pin of one is a pin
+ * of both). Otherwise — a whole page, or a thread gone to the archive — a card
+ * with only the title and the page. Each page is read once. Not cached: admins
+ * expect a new discussion to show at once.
+ */
+export async function loadCommunityPins(
+  pins: readonly CommunityPin[],
+  signal: AbortSignal,
+): Promise<DiscussionCard[]> {
+  const threadsByPage = new Map<string, Thread[]>()
+  for (const page of new Set(pins.filter((pin) => pin.section).map((pin) => pin.page))) {
+    threadsByPage.set(
+      page,
+      await fetchThreads(page, signal).catch((error: unknown) => {
+        if (signal.aborted) throw error
+        return []
+      }),
+    )
+  }
+
+  return pins.map((pin) => {
+    const heading = pin.section.toLowerCase()
+    const thread = heading
+      ? threadsByPage
+          .get(pin.page)
+          ?.find((item) => normalizeTitle(item.title).toLowerCase() === heading)
+      : undefined
+    if (thread) return toCard(thread)
+    const href = pin.section
+      ? `${pageUrl(pin.page)}#${encodeURIComponent(pin.section.replace(/ /g, '_'))}`
+      : pageUrl(pin.page)
+    const example = EXAMPLE_ACTIVITY[pin.id]
+    const latestReply = example
+      ? new Date(Date.now() - example.hoursAgo * 60 * 60_000).toISOString()
+      : ''
+    return {
+      key: pin.id,
+      title: pin.section || pin.page.replace(/^Wikipedia:/, ''),
+      // A whole page is its own title, so it has no page line under it.
+      board: pin.section ? pin.page.replace(/^Wikipedia:/, '') : '',
+      href,
+      comments: example ? `${example.comments} comments` : '',
+      ago: latestReply ? formatAgo(Date.parse(latestReply)) : '',
+      latestReply,
+    }
+  })
 }
