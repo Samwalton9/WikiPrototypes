@@ -1,0 +1,1 @@
+import{H as i}from"./homeRoutes-BEdD-I6W.js";const o=`${i}/community-configuration`,t=[{id:"GrowthBacklogs",title:"Backlogs",description:"Customize the newcomer homepage's Backlogs module."},{id:"CommunityDiscussions",title:"Community discussions",description:"Highlight discussions in the Community tab of every editor's Active discussions."}];export{o as C,t as F};

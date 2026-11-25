@@ -1,1 +1,0 @@
-import{H as o}from"./homeRoutes-BEdD-I6W.js";const s=`${o}/community-configuration`,e=[{id:"GrowthBacklogs",title:"Backlogs",description:"Customize the newcomer homepage's Backlogs module."}];export{s as C,e as F};

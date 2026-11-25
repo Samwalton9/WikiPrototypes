@@ -1,1 +1,0 @@
-function e(n,a=Date.now()){const o=Math.floor((a-n)/6e4);if(!Number.isFinite(o)||o<1)return"just now";if(o<60)return`${o}m ago`;const t=Math.floor(o/60);if(t<24)return`${t}h ago`;const r=Math.floor(t/24);return r<30?`${r}d ago`:`${Math.floor(r/30)}mo ago`}export{e as f};
