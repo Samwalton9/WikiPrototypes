@@ -33,6 +33,7 @@ import {
   TODO_MENU,
 } from './homeModuleMenus'
 import { COMMUNITY_CONFIGURATION_PATH } from './communityConfiguration'
+import { HOME_PATH } from './homeRoutes'
 import { MENTOR_CONTENT } from './mentorContent'
 import { useHomeMentor } from './useHomeMentor'
 import { useTodos } from './useTodos'
@@ -47,6 +48,15 @@ definePage({
 })
 
 const { pageTitle, user } = useConfig()
+
+/*
+ * Default to Administrator when the reader arrives from outside this prototype.
+ * Moves between its own pages keep the preset that the reader chose.
+ */
+const previousPath: unknown = window.history.state?.back
+if (typeof previousPath !== 'string' || !previousPath.startsWith(HOME_PATH)) {
+  user.value = 'admin'
+}
 
 /* Desktop: 60/40, main column then side column. Mobile: one column. */
 const isSplit = computed(() => globalSkin.value === 'desktop')
