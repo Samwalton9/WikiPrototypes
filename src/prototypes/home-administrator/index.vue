@@ -63,7 +63,7 @@ const isSplit = computed(() => globalSkin.value === 'desktop')
 
 /*
  * Administrator: the admin's Home — Review changes, Active discussions, Quick
- * links, To-do, Your impact and Backlogs only.
+ * links, To-do, Backlogs and Your impact only.
  */
 const isAdmin = computed(() => user.value === 'admin')
 
@@ -199,16 +199,16 @@ function onMentorMenuSelect(value: string | number): void {
             </CdxDialog>
           </HomeSectionFrame>
 
-          <HomeSectionFrame id="impact" title="Your impact">
-            <HomeImpact />
-          </HomeSectionFrame>
-
           <HomeSectionFrame v-if="isAdmin" id="backlogs" title="Backlogs">
             <template #actions>
               <HomeModuleMenu :menu="BACKLOGS_MENU" @select="onBacklogsMenuSelect" />
             </template>
             <HomeBacklogs @choose="choosingBacklogs = true" />
             <HomeBacklogsDialog v-model:open="choosingBacklogs" />
+          </HomeSectionFrame>
+
+          <HomeSectionFrame id="impact" title="Your impact">
+            <HomeImpact />
           </HomeSectionFrame>
 
           <HomeSectionFrame v-if="!isAdmin" id="mentor" :title="mentorTitle">

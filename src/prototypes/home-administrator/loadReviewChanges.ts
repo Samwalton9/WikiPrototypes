@@ -1,6 +1,8 @@
 /**
  * Review changes: the latest edit to each of the reader's pages, flagged for
  * review ("High revert risk", "User's first edit"…). Only for readers with pages.
+ * Abuse review: the wiki's recent article edits, in place of the edits that
+ * abuse filters catch (not available to the prototype).
  */
 
 import {
@@ -21,6 +23,7 @@ import {
   fetchDiff,
   fetchEditCounts,
   fetchLatestRevisions,
+  fetchRecentChanges,
   predictRevertRisk,
   type Revision,
   type RevisionDiff,
@@ -50,10 +53,15 @@ export interface ChangeCard {
   /** When, e.g. "3h ago". */
   ago: string
   chips: ChangeChip[]
+  /** The edit itself, for the diff preview. */
+  revision: Revision
 }
 
 /** Up to four pages of three. */
 export const CHANGE_COUNT = 12
+
+/** Abuse review shows no edit newer than this. */
+const ABUSE_REVIEW_MIN_AGE_MS = 10 * 60 * 1000
 
 const TONE_THRESHOLD = 0.8
 const REVERT_RISK_THRESHOLD = 0.7
@@ -81,6 +89,12 @@ const FLAG_CHIPS: Record<ReviewFlag, ChangeChip> = {
   tone: { label: 'Tone issue', status: 'warning', icon: cdxIconAlert },
   'revert-risk': { label: 'High revert risk', status: 'warning', icon: cdxIconAlert },
   'first-edit': { label: "User's first edit", status: 'success', icon: cdxIconUserAdd },
+}
+
+export const REVERTED_CHIP: ChangeChip = {
+  label: 'Reverted',
+  status: 'notice',
+  icon: cdxIconEditUndo,
 }
 
 /** Rough visible length of wikitext: link targets, quote marks and tags stripped. */
@@ -182,7 +196,7 @@ async function signalsFor(revisions: Revision[], signal: AbortSignal): Promise<R
 /** Chips in order: reverted, revert risk, major change, then any other flag. */
 function chipsFor(revision: Revision, { flag, major }: ReviewSignals): ChangeChip[] {
   const chips: ChangeChip[] = []
-  if (revision.reverted) chips.push({ label: 'Reverted', status: 'notice', icon: cdxIconEditUndo })
+  if (revision.reverted) chips.push(REVERTED_CHIP)
   // Already reverted: the risk has played out.
   if (flag === 'revert-risk' && !revision.reverted) chips.push(FLAG_CHIPS[flag])
   if (major) chips.push({ label: 'Major change', status: 'notice', icon: cdxIconInfo })
@@ -203,6 +217,38 @@ async function descriptionsFor(
   )
 }
 
+/** Descriptions for the revisions' articles; a failed lookup just means none. */
+function descriptionsOrNone(
+  revisions: Revision[],
+  signal: AbortSignal,
+): Promise<Map<string, string>> {
+  return descriptionsFor(
+    revisions.map((r) => r.title),
+    signal,
+  ).catch((error: unknown) => {
+    if (signal.aborted) throw error
+    return new Map<string, string>()
+  })
+}
+
+function toChangeCard(
+  revision: Revision,
+  description: string | undefined,
+  chips: ChangeChip[],
+): ChangeCard {
+  return {
+    key: String(revision.revid),
+    title: revision.title,
+    titleDescription: description,
+    summary: formatEditSummary(revision.parsedComment, revision.comment),
+    href: diffUrl(revision),
+    user: revision.user || 'Anonymous',
+    ago: formatAgo(Date.parse(revision.timestamp)),
+    chips,
+    revision,
+  }
+}
+
 /**
  * The latest edit to each of the reader's pages, newest first, flagged for
  * review. The list itself is never cached: edits happen all day.
@@ -216,26 +262,36 @@ export async function loadReviewChanges(
   const revisions = (await fetchLatestRevisions(seeds, signal))
     .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
     .slice(0, CHANGE_COUNT)
-  // Descriptions alongside the review signals; a failed lookup just means none.
+  // Descriptions alongside the review signals.
   const [signals, descriptions] = await Promise.all([
     signalsFor(revisions, signal),
-    descriptionsFor(
-      revisions.map((r) => r.title),
-      signal,
-    ).catch((error: unknown) => {
-      if (signal.aborted) throw error
-      return new Map<string, string>()
-    }),
+    descriptionsOrNone(revisions, signal),
   ])
 
-  return revisions.map((revision, i) => ({
-    key: String(revision.revid),
-    title: revision.title,
-    titleDescription: descriptions.get(titleKey(revision.title)),
-    summary: formatEditSummary(revision.parsedComment, revision.comment),
-    href: diffUrl(revision),
-    user: revision.user || 'Anonymous',
-    ago: formatAgo(Date.parse(revision.timestamp)),
-    chips: chipsFor(revision, signals[i]),
-  }))
+  return revisions.map((revision, i) =>
+    toChangeCard(
+      revision,
+      descriptions.get(titleKey(revision.title)),
+      chipsFor(revision, signals[i]),
+    ),
+  )
+}
+
+/**
+ * Abuse review: the wiki's article edits from at least 10 minutes ago, newest
+ * first. The real list (edits that abuse filters catch) is not available, so
+ * recent changes stand in for it. These edits are not scored: only a revert
+ * shows a chip.
+ */
+export async function loadAbuseReview(signal: AbortSignal): Promise<ChangeCard[]> {
+  const before = new Date(Date.now() - ABUSE_REVIEW_MIN_AGE_MS)
+  const revisions = await fetchRecentChanges(CHANGE_COUNT, before, signal)
+  const descriptions = await descriptionsOrNone(revisions, signal)
+  return revisions.map((revision) =>
+    toChangeCard(
+      revision,
+      descriptions.get(titleKey(revision.title)),
+      revision.reverted ? [REVERTED_CHIP] : [],
+    ),
+  )
 }

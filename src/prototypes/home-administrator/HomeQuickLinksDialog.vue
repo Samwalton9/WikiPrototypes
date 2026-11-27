@@ -2,206 +2,124 @@
 /**
  * The Quick links module's "Edit quick links" dialog: the reader's links, each
  * with a handle to drag it into place (or move it with the arrow keys) and
- * buttons to edit and remove it, then a form to add one (or edit the one
- * chosen)
- * (a page or a web address, and an optional label). Save keeps the changes,
- * with the link in the add form if there is one; Cancel (or closing) drops
- * them.
+ * buttons to edit and remove it, then "Add link". Every change saves at once,
+ * so the dialog has no Save or Cancel of its own. Adding a link, or editing
+ * one in its row, opens a form with its own submit and Cancel; one form at a
+ * time.
  */
-import { computed, ref, watch } from 'vue'
-import { CdxButton, CdxDialog, CdxField, CdxIcon, CdxTextInput } from '@wikimedia/codex'
+import { ref, watch } from 'vue'
+import { CdxButton, CdxDialog, CdxIcon } from '@wikimedia/codex'
 import { cdxIconAdd, cdxIconDraggable, cdxIconEdit, cdxIconTrash } from '@wikimedia/codex-icons'
 
-import QuickLinkTargetLookup from './QuickLinkTargetLookup.vue'
+import QuickLinkForm from './QuickLinkForm.vue'
 import { useDragReorder } from './useDragReorder'
-import {
-  isWebAddress,
-  newQuickLinkId,
-  normalizeTarget,
-  quickLinkText,
-  useQuickLinks,
-  type QuickLink,
-} from './useQuickLinks'
+import { newQuickLinkId, quickLinkText, useQuickLinks } from './useQuickLinks'
 
 const open = defineModel<boolean>('open', { default: false })
 
-const { links, save: saveLinks } = useQuickLinks()
+const { links, save } = useQuickLinks()
 
-/** The links being edited: a copy, so Cancel leaves the module as it was. */
-const draft = ref<QuickLink[]>([])
+/** The open form: `'add'`, a link's id (editing it in its row), or `null`. */
+const formFor = ref<string | null>(null)
 
-const newTarget = ref('')
-const newLabel = ref('')
-/** "Add" (or "Update") was tried: the target field shows its error from here on. */
-const addAttempted = ref(false)
-/** The link the form edits; `null`: the form adds a new one. */
-const editingId = ref<string | null>(null)
-
-function clearForm(): void {
-  newTarget.value = ''
-  newLabel.value = ''
-  addAttempted.value = false
-  editingId.value = null
-}
-
-const form = ref<InstanceType<typeof CdxField> | null>(null)
-
-/** Load a link into the form, to edit it. */
-function startEdit(link: QuickLink): void {
-  editingId.value = link.id
-  newTarget.value = link.target
-  newLabel.value = link.label
-  addAttempted.value = false
-  ;(form.value?.$el as HTMLElement | undefined)?.scrollIntoView({
-    block: 'nearest',
-    behavior: 'smooth',
-  })
-}
-
-watch(
-  open,
-  (isOpen) => {
-    if (!isOpen) return
-    draft.value = links.value.map((link) => ({ ...link }))
-    clearForm()
-  },
-  { immediate: true },
-)
-
-const targetError = computed(() => {
-  const target = newTarget.value.trim()
-  if (!target) return 'Enter a page or a web address.'
-  if (isWebAddress(target)) {
-    try {
-      new URL(target)
-    } catch {
-      return 'Enter a complete web address, such as https://example.org.'
-    }
-  }
-  return ''
+watch(open, () => {
+  formFor.value = null
 })
 
-/**
- * Put the form's link in the list: a new one at the end, or the edited one in
- * its place. False if the form has an error.
- */
-function submit(): boolean {
-  addAttempted.value = true
-  if (targetError.value) return false
-  const fields = { target: normalizeTarget(newTarget.value), label: newLabel.value.trim() }
-  const editing = draft.value.find((link) => link.id === editingId.value)
-  if (editing) Object.assign(editing, fields)
-  else draft.value.push({ id: newQuickLinkId(), ...fields })
-  clearForm()
-  return true
+function add(fields: { target: string; label: string }): void {
+  save([...links.value, { id: newQuickLinkId(), ...fields }])
+  formFor.value = null
+}
+
+function update(id: string, fields: { target: string; label: string }): void {
+  save(links.value.map((link) => (link.id === id ? { ...link, ...fields } : link)))
+  formFor.value = null
+}
+
+function remove(index: number): void {
+  if (links.value[index]?.id === formFor.value) formFor.value = null
+  save(links.value.filter((_, other) => other !== index))
 }
 
 function move(from: number, to: number): void {
-  const [link] = draft.value.splice(from, 1)
-  draft.value.splice(to, 0, link)
+  const next = [...links.value]
+  const [link] = next.splice(from, 1)
+  next.splice(to, 0, link)
+  save(next)
 }
 
 const list = ref<HTMLOListElement | null>(null)
-const { draggingId, handleListeners } = useDragReorder(list, () => draft.value, move)
-
-function remove(index: number): void {
-  const [link] = draft.value.splice(index, 1)
-  if (link.id === editingId.value) clearForm()
-}
-
-/* A link typed (or edited) in the form but not yet added is saved too, so it isn't lost. */
-function save(): void {
-  const pending = editingId.value || newTarget.value.trim() || newLabel.value.trim()
-  if (pending && !submit()) return
-  saveLinks(draft.value)
-  open.value = false
-}
+const { draggingId, handleListeners } = useDragReorder(list, () => links.value, move)
 </script>
 
 <template>
-  <CdxDialog
-    v-model:open="open"
-    title="Edit quick links"
-    use-close-button
-    :primary-action="{ label: 'Save', actionType: 'progressive' }"
-    :default-action="{ label: 'Cancel' }"
-    @primary="save"
-    @default="open = false"
-  >
+  <CdxDialog v-model:open="open" title="Edit quick links" use-close-button>
     <div class="quick-links-dialog">
-      <p v-if="!draft.length" class="quick-links-dialog__empty">No links yet.</p>
+      <p v-if="!links.length" class="quick-links-dialog__empty">No links yet.</p>
 
       <ol v-else ref="list" class="quick-links-dialog__list">
         <li
-          v-for="(link, index) in draft"
+          v-for="(link, index) in links"
           :key="link.id"
           class="quick-links-dialog__item"
-          :class="{
-            'quick-links-dialog__item--dragging': draggingId === link.id,
-            'quick-links-dialog__item--editing': editingId === link.id,
-          }"
+          :class="{ 'quick-links-dialog__item--dragging': draggingId === link.id }"
         >
-          <CdxButton
-            weight="quiet"
-            class="quick-links-dialog__handle"
-            :aria-label="`Reorder ${quickLinkText(link)} (drag, or use the up and down arrow keys)`"
-            v-on="handleListeners(link.id, index)"
-          >
-            <CdxIcon :icon="cdxIconDraggable" />
-          </CdxButton>
-          <span class="quick-links-dialog__text">
-            <span class="quick-links-dialog__label">{{ quickLinkText(link) }}</span>
-            <span v-if="link.label" class="quick-links-dialog__target">{{ link.target }}</span>
-          </span>
-          <CdxButton
-            weight="quiet"
-            class="quick-links-dialog__row-action"
-            :aria-label="`Edit ${quickLinkText(link)}`"
-            :aria-pressed="editingId === link.id"
-            @click="startEdit(link)"
-          >
-            <CdxIcon :icon="cdxIconEdit" />
-          </CdxButton>
-          <CdxButton
-            weight="quiet"
-            action="destructive"
-            class="quick-links-dialog__row-action"
-            :aria-label="`Remove ${quickLinkText(link)}`"
-            @click="remove(index)"
-          >
-            <CdxIcon :icon="cdxIconTrash" />
-          </CdxButton>
+          <QuickLinkForm
+            v-if="formFor === link.id"
+            class="quick-links-dialog__edit-form"
+            legend="Edit link"
+            submit-label="Save"
+            :initial-target="link.target"
+            :initial-label="link.label"
+            @submit="update(link.id, $event)"
+            @cancel="formFor = null"
+          />
+          <template v-else>
+            <CdxButton
+              weight="quiet"
+              class="quick-links-dialog__handle"
+              :aria-label="`Reorder ${quickLinkText(link)} (drag, or use the up and down arrow keys)`"
+              v-on="handleListeners(link.id, index)"
+            >
+              <CdxIcon :icon="cdxIconDraggable" />
+            </CdxButton>
+            <span class="quick-links-dialog__text">
+              <span class="quick-links-dialog__label">{{ quickLinkText(link) }}</span>
+              <span v-if="link.label" class="quick-links-dialog__target">{{ link.target }}</span>
+            </span>
+            <CdxButton
+              weight="quiet"
+              class="quick-links-dialog__row-action"
+              :aria-label="`Edit ${quickLinkText(link)}`"
+              @click="formFor = link.id"
+            >
+              <CdxIcon :icon="cdxIconEdit" />
+            </CdxButton>
+            <CdxButton
+              weight="quiet"
+              action="destructive"
+              class="quick-links-dialog__row-action"
+              :aria-label="`Remove ${quickLinkText(link)}`"
+              @click="remove(index)"
+            >
+              <CdxIcon :icon="cdxIconTrash" />
+            </CdxButton>
+          </template>
         </li>
       </ol>
 
-      <CdxField ref="form" is-fieldset class="quick-links-dialog__add">
-        <template #label>{{ editingId ? 'Edit link' : 'Add a link' }}</template>
-
-        <CdxField
-          :status="addAttempted && targetError ? 'error' : 'default'"
-          :messages="{ error: targetError }"
-        >
-          <template #label>Page or web address</template>
-          <template #description>
-            A page on Wikipedia, or a shortcut to one such as WP:AIV, or a web address.
-          </template>
-          <QuickLinkTargetLookup v-model="newTarget" />
-        </CdxField>
-
-        <CdxField optional>
-          <template #label>Label</template>
-          <template #description>What the link says in the module.</template>
-          <CdxTextInput v-model="newLabel" @keydown.enter.prevent="submit" />
-        </CdxField>
-      </CdxField>
-
-      <div class="quick-links-dialog__form-actions">
-        <CdxButton v-if="editingId" @click="submit">Update link</CdxButton>
-        <CdxButton v-else @click="submit">
+      <QuickLinkForm
+        v-if="formFor === 'add'"
+        legend="Add a link"
+        submit-label="Add"
+        @submit="add"
+        @cancel="formFor = null"
+      />
+      <div v-else>
+        <CdxButton @click="formFor = 'add'">
           <CdxIcon :icon="cdxIconAdd" />
           Add link
         </CdxButton>
-        <CdxButton v-if="editingId" weight="quiet" @click="clearForm">Cancel</CdxButton>
       </div>
     </div>
   </CdxDialog>
@@ -268,15 +186,10 @@ function save(): void {
   flex-shrink: 0;
 }
 
-/* The link in the form: marked in the list, so it's clear which one the form changes. */
-.quick-links-dialog__item--editing {
-  border-radius: var(--border-radius-base);
-  background-color: var(--background-color-progressive-subtle);
-}
-
-.quick-links-dialog__form-actions {
-  display: flex;
-  gap: var(--spacing-50);
+/* The row being edited holds the form, which fills it. */
+.quick-links-dialog__edit-form {
+  flex-grow: 1;
+  margin-block: var(--spacing-25);
 }
 
 .quick-links-dialog__label,
@@ -288,25 +201,5 @@ function save(): void {
   font-size: var(--font-size-small);
   line-height: var(--line-height-small);
   color: var(--color-subtle);
-}
-
-/* The add form's fields in their own outlined box; its "Add link" button follows it. */
-.quick-links-dialog__add {
-  padding: var(--spacing-75) var(--spacing-100) var(--spacing-100);
-  border: var(--border-width-base) var(--border-style-base) var(--border-color-subtle);
-  border-radius: var(--border-radius-base);
-}
-
-/*
- * A fieldset's legend sits on its border. Floated, it is an ordinary first line
- * inside the box instead (the fields after it clear the float).
- */
-.quick-links-dialog__add :deep(legend) {
-  float: inline-start;
-  width: 100%;
-}
-
-.quick-links-dialog__add :deep(legend + *) {
-  clear: both;
 }
 </style>

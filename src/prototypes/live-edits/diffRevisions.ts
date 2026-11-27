@@ -32,13 +32,13 @@ function textNodes(root: Node): Text[] {
   return nodes
 }
 
-type Op = { type: 'equal' | 'insert' | 'delete'; a: number; b: number }
+export type Op = { type: 'equal' | 'insert' | 'delete'; a: number; b: number }
 
 /**
  * The shortest edit script from `a` to `b` (longest common subsequence).
  * Returns `null` when the inputs are too large to compare.
  */
-function diffSequences(a: string[], b: string[]): Op[] | null {
+export function diffSequences(a: string[], b: string[]): Op[] | null {
   let start = 0
   while (start < a.length && start < b.length && a[start] === b[start]) start++
   let endA = a.length

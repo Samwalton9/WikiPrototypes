@@ -2,8 +2,9 @@
 /**
  * A module's list of change cards: Codex `CdxCard`s for edits — status chips
  * over the page title, the article's description, the edit summary, then the
- * editor and when. Cards open the diff on Wikipedia in a new tab. While loading
- * it shows flat skeletons of the same shape. As a `feed` (a module's own page)
+ * editor and when. A click opens the edit's diff preview (`open`); a click
+ * for a new tab still opens the diff on Wikipedia. Cards already opened show
+ * in plain, subtle text. While loading it shows flat skeletons of the same shape. As a `feed` (a module's own page)
  * the cards are divider rows.
  */
 import { CdxCard, CdxIcon, CdxInfoChip } from '@wikimedia/codex'
@@ -18,7 +19,18 @@ defineProps<{
   skeletons: number
   /** Divider rows rather than outlined cards (a module's own page). */
   feed?: boolean
+  /** Cards the reader has opened, by key. */
+  openedKeys?: ReadonlySet<string>
 }>()
+
+const emit = defineEmits<{ open: [card: ChangeCard] }>()
+
+/** A plain click opens the preview; a click for a new tab or window follows the link. */
+function onClick(event: MouseEvent, card: ChangeCard): void {
+  if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return
+  event.preventDefault()
+  emit('open', card)
+}
 </script>
 
 <template>
@@ -32,9 +44,11 @@ defineProps<{
       v-else
       :key="card.key"
       class="home-change-cards__card"
+      :class="{ 'home-change-cards__card--opened': openedKeys?.has(card.key) }"
       :url="card.href"
       target="_blank"
       :separation="feed ? 'divider' : undefined"
+      @click="onClick($event, card)"
     >
       <template #title>
         <!-- CODEX+ CdxCard: no slot above the title, so status chips lead the title slot. -->
@@ -72,6 +86,12 @@ defineProps<{
   display: flex;
   flex-direction: column;
   gap: var(--spacing-50);
+}
+
+/* Opened: the title in regular weight and subtle colour, as read. */
+.home-change-cards__card--opened :deep(.cdx-card__text__title) {
+  font-weight: var(--font-weight-normal);
+  color: var(--color-subtle);
 }
 
 /* Chips sit on their own row above the title, in regular weight. */

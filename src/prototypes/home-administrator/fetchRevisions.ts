@@ -1,6 +1,6 @@
 /**
  * Edit lookups on the Action API for Review changes: pages' latest revisions,
- * a revision's diff, and editors' edit counts. Each is one call (batched where
+ * the wiki's recent changes, a revision's diff and HTML, and editors' edit counts. Each is one call (batched where
  * the API allows).
  */
 
@@ -99,6 +99,35 @@ export async function fetchLatestRevisions(
     .map((page) => toRevision(page.title, page.revisions![0]))
 }
 
+/**
+ * The wiki's latest article edits by people (not bots) up to `before`, newest
+ * first, in one call.
+ */
+export async function fetchRecentChanges(
+  limit: number,
+  before: Date,
+  signal?: AbortSignal,
+): Promise<Revision[]> {
+  const data = await action<{
+    query?: { recentchanges?: (ApiRevision & { title: string; old_revid?: number })[] }
+  }>(
+    {
+      action: 'query',
+      list: 'recentchanges',
+      rcnamespace: '0',
+      rctype: 'edit|new',
+      rcshow: '!bot',
+      rcstart: before.toISOString(),
+      rclimit: String(limit),
+      rcprop: 'title|ids|user|userid|timestamp|comment|parsedcomment|tags',
+    },
+    signal,
+  )
+  return (data.query?.recentchanges ?? []).map((row) =>
+    toRevision(row.title, { ...row, parentid: row.old_revid }),
+  )
+}
+
 function joinText(cells: Iterable<Element>): string {
   return Array.from(cells, (cell) => cell.textContent?.trim() ?? '')
     .filter(Boolean)
@@ -139,6 +168,22 @@ export async function fetchDiff(
   }
 }
 
+/** A revision's article HTML, as the parser renders it to readers. */
+export async function fetchRevisionHtml(revid: number, signal?: AbortSignal): Promise<string> {
+  const data = await action<{ parse?: { text?: string } }>(
+    {
+      action: 'parse',
+      oldid: String(revid),
+      prop: 'text',
+      disableeditsection: '1',
+      disablelimitreport: '1',
+      disabletoc: '1',
+    },
+    signal,
+  )
+  return data.parse?.text ?? ''
+}
+
 /** Edit counts by username, in one call; unknown accounts are left out. */
 export async function fetchEditCounts(
   users: string[],
@@ -162,6 +207,9 @@ export async function fetchEditCounts(
   }
   return counts
 }
+
+/** The wiki's host, for links to its pages. */
+export const WIKI_ORIGIN = `https://${HOST}`
 
 /** The edit on Wikipedia, as a diff against the revision before it. */
 export function diffUrl(revision: Revision): string {
